@@ -24,6 +24,7 @@ public class Player : Character
     [SerializeField] GameObject projectile2;
     [SerializeField] GameObject projectile3;
     [SerializeField] GameObject projectileOverdrive;
+    [SerializeField] ParticleSystem muzzleVFX;
     [SerializeField] Transform muzzleMiddle;
     [SerializeField] Transform muzzleTop;
     [SerializeField] Transform muzzleBottom;
@@ -46,7 +47,8 @@ public class Player : Character
     bool isDodging = false;
     bool isOverdriving = false;
 
-    readonly float slowMotionDuration = 1f;
+    readonly float SlowMotionDuration = 1f;
+    readonly float InvincibleTime = 1f;
     float paddingX;
     float paddingY;
     float currentRoll;
@@ -62,6 +64,7 @@ public class Player : Character
     WaitForSeconds waitForOverdriveFireInterval;
     WaitForSeconds waitHealthRegenerateTime;
     WaitForSeconds waitDecelerationTime;
+    WaitForSeconds waitInvincibleTime;
 
     WaitForFixedUpdate waitForFixedUpdate = new WaitForFixedUpdate();
 
@@ -73,6 +76,13 @@ public class Player : Character
     new Collider2D collider;
 
     MissileSystem missile;
+    #endregion
+
+    #region PROPERTIES
+
+    public bool IsFullHealth => health == maxHealth;
+    public bool IsFullPower => weaponPower == 2;
+
     #endregion
 
     #region UNITY EVENT FUNCTIONS
@@ -93,6 +103,7 @@ public class Player : Character
         waitForOverdriveFireInterval = new WaitForSeconds(fireInterval / overdriveFireFactor);
         waitHealthRegenerateTime = new WaitForSeconds(healthRegenerateTime);
         waitDecelerationTime = new WaitForSeconds(decelerationTime);
+        waitInvincibleTime = new WaitForSeconds(InvincibleTime);
     }
 
     protected override void OnEnable()
@@ -136,12 +147,14 @@ public class Player : Character
     public override void TakeDamage(float damage)
     {
         base.TakeDamage(damage);
+        PowerDown();
         statsBar_HUD.UpdateStats(health, maxHealth);
-        TimeController.Instance.BulletTime(slowMotionDuration);
+        TimeController.Instance.BulletTime(SlowMotionDuration);
 
         if (gameObject.activeSelf)
         {
             Move(moveDirection);
+            StartCoroutine(InvincibleCoroutine());
             
             if (regenerateHealth)
             {
@@ -168,6 +181,15 @@ public class Player : Character
         statsBar_HUD.UpdateStats(0f, maxHealth);
         base.Die();
     }
+
+    IEnumerator InvincibleCoroutine()
+    {
+        collider.isTrigger = true;
+
+        yield return waitInvincibleTime;
+
+        collider.isTrigger = false;
+    }
     #endregion
 
     #region MOVE
@@ -191,7 +213,8 @@ public class Player : Character
             StopCoroutine(moveCoroutine);
         }
 
-        moveCoroutine = StartCoroutine(MoveCoroutine(decelerationTime, Vector2.zero, Quaternion.identity));
+        moveDirection = Vector2.zero;
+        moveCoroutine = StartCoroutine(MoveCoroutine(decelerationTime, moveDirection, Quaternion.identity));
         StartCoroutine(nameof(DecelerationCoroutine));
     }
 
@@ -232,11 +255,13 @@ public class Player : Character
     #region FIRE
     void Fire()
     {
+        muzzleVFX.Play();
         StartCoroutine(nameof(FireCoroutine));
     }
 
     void StopFire()
     {
+        muzzleVFX.Stop();
         StopCoroutine(nameof(FireCoroutine));
     }
 
@@ -284,7 +309,7 @@ public class Player : Character
         PlayerEnergy.Instance.Use(dodgeEnergyCost);
         collider.isTrigger = true;
         currentRoll = 0f;
-        TimeController.Instance.BulletTime(slowMotionDuration, slowMotionDuration);
+        TimeController.Instance.BulletTime(SlowMotionDuration, SlowMotionDuration);
 
         while (currentRoll < maxRoll)
         {
@@ -313,7 +338,7 @@ public class Player : Character
         isOverdriving = true;
         dodgeEnergyCost *= overdriveDodgeFactor;
         moveSpeed *= overdriveSpeedFactor;
-        TimeController.Instance.BulletTime(slowMotionDuration, slowMotionDuration);
+        TimeController.Instance.BulletTime(SlowMotionDuration, SlowMotionDuration);
     }
 
     void OverdriveOff()
@@ -324,8 +349,37 @@ public class Player : Character
     }
     #endregion
 
+    #region MISSILE
     void LaunchMissile()
     {
         missile.Launch(muzzleMiddle);
     }
+
+    public void PickUpMissile()
+    {
+        missile.PickUp();
+    }
+    #endregion
+
+    #region WEAPON POWER
+
+    public void PowerUp()
+    {
+        weaponPower = Mathf.Min(++weaponPower, 2);
+    }
+
+    void PowerDown()
+    {
+        //* 写法1
+        // weaponPower--;
+        // weaponPower = Mathf.Clamp(weaponPower, 0, 2);
+        //* 写法2
+        // weaponPower = Mathf.Max(weaponPower - 1, 0);
+        //* 写法3
+        // weaponPower = Mathf.Clamp(weaponPower, --weaponPower, 0);
+        //* 写法4
+        weaponPower = Mathf.Max(--weaponPower, 0);
+    }
+
+    #endregion
 }

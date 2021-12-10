@@ -6,8 +6,9 @@ public class Boss : Enemy
 
     Canvas healthBarCanvas;
 
-    void Awake()
+    protected override void Awake()
     {
+        base.Awake();
         healthBar = FindObjectOfType<BossHealthBar>();
         healthBarCanvas = healthBar.GetComponentInChildren<Canvas>();
     }
@@ -37,5 +38,10 @@ public class Boss : Enemy
     {
         base.TakeDamage(damage);
         healthBar.UpdateStats(health, maxHealth);
+    }
+
+    protected override void SetHealth()
+    {
+        maxHealth += EnemyManager.Instance.WaveNumber * healthFactor;
     }
 }
